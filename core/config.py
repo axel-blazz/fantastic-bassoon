@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Environment
+    ENV: str = "dev"
+
     # Security
     JWT_SECRET: str
 
