@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from api.auth import router as auth_router
 from core.config import settings as Config
 from core.logging import setup_logging
+import warnings
+
+warnings.filterwarnings("ignore", module="passlib")
 
 logger = setup_logging()
 
