@@ -30,6 +30,8 @@ def incident_db_to_incident_out(incident_db: IncidentDB) -> IncidentOut:
     )
 
 def apply_incident_patch(incident_db: IncidentDB, incident_patch: IncidentPatch) -> IncidentDB:
+    if incident_patch.status is None:
+        raise ValueError("No fields provided for update")
     if incident_patch.status:
         if not is_valid_status_transition(IncidentStatus(incident_db.status), incident_patch.status):
             raise ValueError(f"Invalid status transition from {incident_db.status} to {incident_patch.status.value}")
