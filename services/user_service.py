@@ -1,4 +1,4 @@
-from schemas.user import UserIn, UserOut
+from schemas.user import UserIn, UserOut, UserRole
 from models.user import User as UserDB
 from core.security import hash_password
 
@@ -13,6 +13,6 @@ def user_db_to_user_out(user_db: UserDB) -> UserOut:
     return UserOut(
         id=user_db.id,
         email=user_db.email,
-        role=user_db.role,
+        role=UserRole(user_db.role),
         created_at=user_db.created_at
     )

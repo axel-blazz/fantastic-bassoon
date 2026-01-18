@@ -34,7 +34,7 @@ def get_current_user(
 
 def require_roles(*allowed_roles: UserRole):
     def role_guard(identity=Depends(get_current_user)):
-        if identity["role"] not in [role.value for role in allowed_roles]:
+        if identity["role"] not in [role for role in allowed_roles]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",

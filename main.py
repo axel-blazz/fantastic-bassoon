@@ -3,11 +3,15 @@ from api.auth import router as auth_router
 from api import incidents
 from core.config import settings as Config
 from core.logging import setup_logging
+from db.base import Base
+from db.session import engine
 import warnings
 
 warnings.filterwarnings("ignore", module="passlib")
 
 logger = setup_logging()
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title=Config.APP_NAME)
 
