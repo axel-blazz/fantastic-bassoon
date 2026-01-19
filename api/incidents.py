@@ -4,12 +4,15 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from db.deps import get_db
 from schemas.incidents import IncidentOut, IncidentIn, IncidentPatch
+from schemas.incident_log import IncidentLogIn, IncidentLogOut
+from services.incident_log_service import incident_log_db_to_out
 from services.incident_service import (
     incident_in_to_db,
     incident_db_to_incident_out,
     apply_incident_patch,
 )
 from models.incidents import IncidentDB
+from models.incident_logs import IncidentLogDB
 
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -85,3 +88,27 @@ async def delete_incident(
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Incident deletion failed: {e}")
     return {"status": "success", "detail": "Incident deleted successfully"}
+
+
+@router.post("/{incident_id}/logs", status_code=status.HTTP_201_CREATED)
+async def add_incident_log(
+    incident_id: UUID,
+    payload: IncidentLogIn,
+    db: Session = Depends(get_db),
+    _=Depends(require_roles("ENGINEER", "ADMIN")),
+):
+    incident = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    log = IncidentLogDB(incident_id=incident_id, message=payload.message)
+
+    try:
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Adding log failed: {e}")
+    
+    return incident_log_db_to_out(log)
+

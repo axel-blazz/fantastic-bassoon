@@ -15,7 +15,7 @@ class IncidentLogDB(Base):
         unique=True,
         nullable=False,
     )
-    incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id"), nullable=False)
+    incident_id = Column(UUID(as_uuid=True), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False)
     message = Column(String(2000), nullable=False)
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: dt.now(timezone.utc)

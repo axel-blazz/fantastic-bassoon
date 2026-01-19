@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
 
+from schemas.incident_log import IncidentLogOut
+
 
 class IncidentStatus(str, Enum):
     OPEN = "OPEN"
@@ -20,6 +22,7 @@ class IncidentOut(BaseModel):
     id: UUID
     title: str
     description: str
+    logs: list[IncidentLogOut] = []
     status: IncidentStatus
     created_at: datetime
     updated_at: datetime

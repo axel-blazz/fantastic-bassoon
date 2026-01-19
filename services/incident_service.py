@@ -1,5 +1,6 @@
 from schemas.incidents import *
 from models.incidents import IncidentDB
+from services.incident_log_service import incident_log_db_to_out
 
 VALID_STATUS_TRANSITIONS = {
     IncidentStatus.OPEN: {IncidentStatus.IN_PROGRESS, IncidentStatus.CLOSED},
@@ -26,7 +27,8 @@ def incident_db_to_incident_out(incident_db: IncidentDB) -> IncidentOut:
         description=incident_db.description,
         status=IncidentStatus(incident_db.status),
         created_at=incident_db.created_at,
-        updated_at=incident_db.updated_at
+        updated_at=incident_db.updated_at,
+        logs=[incident_log_db_to_out(log) for log in incident_db.logs]
     )
 
 def apply_incident_patch(incident_db: IncidentDB, incident_patch: IncidentPatch) -> IncidentDB:
