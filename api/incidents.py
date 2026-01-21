@@ -17,8 +17,6 @@ from services.incident_service import (
     list_incidents_service,
     update_incident_service,
 )
-from models.incidents import IncidentDB
-from models.incident_logs import IncidentLogDB
 
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -34,7 +32,7 @@ async def create_incident(
         incident_db = create_incident_service(db, payload)
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Incident creation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error")
     return incident_db_to_incident_out(incident_db)
 
 
@@ -49,10 +47,11 @@ async def update_incident(
         incident_db = update_incident_service(db, incident_id, payload)
     except ValueError as ve:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(ve))
+        status_code = 404 if "not found" in str(ve).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(ve))
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Incident update failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error")
     return incident_db_to_incident_out(incident_db)
 
 
@@ -64,6 +63,8 @@ async def get_incident(
         incident_db = get_incident_service(db, incident_id)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error")
     return incident_db_to_incident_out(incident_db)
 
 
@@ -77,14 +78,14 @@ async def list_incidents(db: Session = Depends(get_db), _=Depends(get_current_us
 async def delete_incident(
     incident_id: UUID, db: Session = Depends(get_db), _=Depends(require_roles("ADMIN"))
 ):
-    
+
     try:
         delete_incident_service(db, incident_id)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Incident deletion failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error")
     return None
 
 
@@ -97,8 +98,10 @@ async def add_incident_log(
 ):
     try:
         log = add_incident_log_service(db, incident_id, payload.message)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Adding log failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error")
 
     return incident_log_db_to_out(log)

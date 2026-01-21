@@ -1,5 +1,5 @@
-from fastapi import HTTPException
 from models.incident_logs import IncidentLogDB
+from repositories.incident_log_repo import save_log
 from schemas.incidents import *
 from models.incidents import IncidentDB
 from services.incident_log_service import incident_log_db_to_out
@@ -70,9 +70,7 @@ def update_incident_service(
     if not incident_db:
         raise ValueError("Incident not found")
     incident_db = apply_incident_patch(incident_db, payload)
-    db.commit()
-    db.refresh(incident_db)
-    return incident_db
+    return save(db, incident_db)
 
 
 def get_incident_service(db: Session, incident_id: UUID) -> IncidentDB:
@@ -92,6 +90,7 @@ def delete_incident_service(db: Session, incident_id: UUID) -> None:
         raise ValueError("Incident not found")
     delete(db, incident_db)
 
+
 def add_incident_log_service(
     db: Session, incident_id: UUID, message: str
 ) -> IncidentLogDB:
@@ -99,4 +98,4 @@ def add_incident_log_service(
     if not incident:
         raise ValueError("Incident not found")
     incident_log_db = IncidentLogDB(incident_id=incident_id, message=message)
-    return save(db, incident_log_db)
+    return save_log(db, incident_log_db)

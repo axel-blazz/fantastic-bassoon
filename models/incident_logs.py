@@ -1,6 +1,7 @@
 from datetime import datetime as dt, timezone
 import uuid
-from sqlalchemy import Column, ForeignKey, String, DateTime, Enum, ForeignKey
+from sqlalchemy import Column, ForeignKey, String, DateTime
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from db.base import Base
 
@@ -20,3 +21,5 @@ class IncidentLogDB(Base):
     created_at = Column(
         DateTime(timezone=True), nullable=False, default=lambda: dt.now(timezone.utc)
     )
+
+    incident = relationship("IncidentDB", back_populates="logs")

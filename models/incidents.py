@@ -32,7 +32,8 @@ class IncidentDB(Base):
 
     logs = relationship(
         "IncidentLogDB",
-        backref="incident",
+        back_populates="incident",
         order_by="IncidentLogDB.created_at",
+        passive_deletes=True,
         cascade="all, delete-orphan",
     )
