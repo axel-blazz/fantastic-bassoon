@@ -7,9 +7,15 @@ from schemas.incidents import IncidentOut, IncidentIn, IncidentPatch
 from schemas.incident_log import IncidentLogIn, IncidentLogOut
 from services.incident_log_service import incident_log_db_to_out
 from services.incident_service import (
+    add_incident_log_service,
+    delete_incident_service,
+    get_incident_service,
     incident_in_to_db,
     incident_db_to_incident_out,
     apply_incident_patch,
+    create_incident_service,
+    list_incidents_service,
+    update_incident_service,
 )
 from models.incidents import IncidentDB
 from models.incident_logs import IncidentLogDB
@@ -24,11 +30,8 @@ async def create_incident(
     db: Session = Depends(get_db),
     _=Depends(require_roles("ENGINEER", "ADMIN")),
 ):
-    incident_db = incident_in_to_db(payload)
     try:
-        db.add(incident_db)
-        db.commit()
-        db.refresh(incident_db)
+        incident_db = create_incident_service(db, payload)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Incident creation failed: {e}")
@@ -42,13 +45,8 @@ async def update_incident(
     db: Session = Depends(get_db),
     _=Depends(require_roles("ENGINEER", "ADMIN")),
 ):
-    incident_db = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
-    if not incident_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
     try:
-        incident_db = apply_incident_patch(incident_db, payload)
-        db.commit()
-        db.refresh(incident_db)
+        incident_db = update_incident_service(db, incident_id, payload)
     except ValueError as ve:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(ve))
@@ -62,15 +60,16 @@ async def update_incident(
 async def get_incident(
     incident_id: UUID, db: Session = Depends(get_db), _=Depends(get_current_user)
 ):
-    incident_db = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
-    if not incident_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
+    try:
+        incident_db = get_incident_service(db, incident_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
     return incident_db_to_incident_out(incident_db)
 
 
 @router.get("/", response_model=list[IncidentOut])
 async def list_incidents(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    incidents_db = db.query(IncidentDB).all()
+    incidents_db = list_incidents_service(db)
     return [incident_db_to_incident_out(inc) for inc in incidents_db]
 
 
@@ -78,16 +77,15 @@ async def list_incidents(db: Session = Depends(get_db), _=Depends(get_current_us
 async def delete_incident(
     incident_id: UUID, db: Session = Depends(get_db), _=Depends(require_roles("ADMIN"))
 ):
-    incident_db = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
-    if not incident_db:
-        raise HTTPException(status_code=404, detail="Incident not found")
+    
     try:
-        db.delete(incident_db)
-        db.commit()
+        delete_incident_service(db, incident_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Incident deletion failed: {e}")
-    return {"status": "success", "detail": "Incident deleted successfully"}
+    return None
 
 
 @router.post("/{incident_id}/logs", status_code=status.HTTP_201_CREATED)
@@ -97,18 +95,10 @@ async def add_incident_log(
     db: Session = Depends(get_db),
     _=Depends(require_roles("ENGINEER", "ADMIN")),
 ):
-    incident = db.query(IncidentDB).filter(IncidentDB.id == incident_id).first()
-    if not incident:
-        raise HTTPException(status_code=404, detail="Incident not found")
-    log = IncidentLogDB(incident_id=incident_id, message=payload.message)
-
     try:
-        db.add(log)
-        db.commit()
-        db.refresh(log)
+        log = add_incident_log_service(db, incident_id, payload.message)
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Adding log failed: {e}")
-    
-    return incident_log_db_to_out(log)
 
+    return incident_log_db_to_out(log)
