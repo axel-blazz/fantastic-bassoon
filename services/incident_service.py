@@ -5,6 +5,10 @@ from models.incidents import IncidentDB
 from services.incident_log_service import incident_log_db_to_out
 from sqlalchemy.orm import Session
 from repositories.incident_repo import get_by_id, list_all, save, delete
+from events.incident_events import IncidentCreatedEvent
+from events import event_dispatcher
+from uuid import uuid4
+from datetime import datetime, timezone
 
 
 VALID_STATUS_TRANSITIONS = {
@@ -42,6 +46,18 @@ def incident_db_to_incident_out(incident_db: IncidentDB) -> IncidentOut:
     )
 
 
+def incident_db_to_created_event(incident: IncidentDB) -> IncidentCreatedEvent:
+    return IncidentCreatedEvent(
+        event_id=uuid4(),
+        event_type="IncidentCreated",
+        occured_at=datetime.now(timezone.utc),
+        source="incident_service",
+        incident_id=incident.id,
+        title=incident.title,
+        status=IncidentStatus(incident.status).value,
+    )
+
+
 def apply_incident_patch(
     incident_db: IncidentDB, incident_patch: IncidentPatch
 ) -> IncidentDB:
@@ -60,7 +76,10 @@ def apply_incident_patch(
 
 def create_incident_service(db: Session, payload: IncidentIn) -> IncidentDB:
     incident_db = incident_in_to_db(payload)
-    return save(db, incident_db)
+    incident = save(db, incident_db)
+    event = incident_db_to_created_event(incident)
+    event_dispatcher.emit(event)
+    return incident
 
 
 def update_incident_service(
