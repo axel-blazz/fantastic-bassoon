@@ -670,3 +670,275 @@ if not any([patch.status, patch.priority, patch.assigned_to]):
 - Services reusable outside HTTP context
 - System ready for Kafka, workers, and AI
 - Reduced accidental complexity
+
+## 🟦 Day 10 — Event-Driven Architecture Fundamentals
+
+**Theme:** Event-driven architecture fundamentals (without Kafka)  
+Today was about designing contracts and boundaries, not infrastructure.
+
+---
+
+### Question I had
+
+> "Isn't an event just another API payload?"
+
+### Why I was confused
+
+I thought events were similar to request/response schemas.
+
+### Explanation that helped
+
+An event is a **fact about the past**, not a command.
+
+- ❌ `CreateIncident` (command)
+- ✅ `IncidentCreated` (event)
+
+An event:
+
+- Is **immutable**
+- Describes something that **already happened**
+- Can be **safely replayed**
+- Must make sense **on its own** (without DB access)
+
+### Mental model
+
+> Events are immutable facts, not mutable commands.
+
+---
+
+### Question I had
+
+> "Why not just use Kafka directly?"
+
+### Why I was confused
+
+I wanted to skip the in-memory phase and go straight to infrastructure.
+
+### Explanation that helped
+
+Kafka is **transport**, not design.
+
+Starting in-memory helped me:
+
+- Freeze event schemas early
+- Understand when events should be emitted
+- Avoid coupling business logic to Kafka APIs
+- Debug events easily via logs
+
+Kafka later becomes a plug-in, not a rewrite.
+
+### Mental model
+
+> Design events first, transport second.
+
+---
+
+### Question I had
+
+> "Why not put events inside `schemas/`?"
+
+### Why I was confused
+
+I thought all schemas belonged in one place.
+
+### Explanation that helped
+
+| Aspect    | API Schemas       | Event Schemas      |
+| --------- | ----------------- | ------------------ |
+| Scope     | External contract | Internal contract  |
+| Transport | Tied to HTTP      | Transport-agnostic |
+| Stability | Changes often     | Must be stable     |
+| Audience  | Client-facing     | System-facing      |
+
+Created `app/events/` for this separation to prevent future chaos.
+
+### Mental model
+
+> API contracts ≠ Event contracts
+
+---
+
+### Question I had
+
+> "Why does every event need the same metadata?"
+
+### Why I was confused
+
+Metadata felt like overhead.
+
+### Explanation that helped
+
+Shared metadata enables:
+
+- **Idempotency** (duplicate detection)
+- **Debugging** (trace events)
+- **Ordering** (causality)
+- **Kafka routing** (partition keys)
+
+Key fields that must always exist:
+
+- `event_id`
+- `event_type`
+- `occurred_at`
+- `source`
+
+Also learned why:
+
+```python
+class Config:
+  frozen = True
+```
+
+Events must never be mutated.
+
+### Mental model
+
+> Events = immutable facts with traceable metadata
+
+---
+
+### Question I had
+
+> "Why not emit events from routers?"
+
+### Why I was confused
+
+I thought events could be emitted anywhere in the stack.
+
+### Explanation that helped
+
+| Layer       | Emit events? | Why                       |
+| ----------- | :----------: | ------------------------- |
+| Router      |      ❌      | Knows HTTP, not business  |
+| Repository  |      ❌      | Knows DB, not intent      |
+| **Service** |      ✅      | Knows business milestones |
+| Mapper      |      ❌      | Pure translation          |
+| Dispatcher  |      ❌      | Transport only            |
+
+Services are the only correct place.
+
+### Mental model
+
+> Only services understand business intent.
+
+---
+
+### Question I had
+
+> "Why not just log the event directly?"
+
+### Why I was confused
+
+I saw the event dispatcher as unnecessary abstraction.
+
+### Explanation that helped
+
+The dispatcher:
+
+- Hides **how** events are transported
+- Allows **swapping** logging → Kafka later
+- Keeps services **clean and future-proof**
+
+This line became the only thing services care about:
+
+```python
+event_dispatcher.emit(event)
+```
+
+### Mental model
+
+> Abstraction hides transport, not intent.
+
+---
+
+### Question I had
+
+> "Isn't this extra indirection?"
+
+(referring to mapper functions)
+
+### Explanation that helped
+
+Mapper functions:
+
+- Prevent duplication
+- Centralize event creation logic
+- Make services simpler
+- Make Kafka migration painless
+- Are easy to unit test
+
+Key rule I learned:
+
+> Mappers are **pure functions**. No DB, no logging, no dispatching.
+
+### Mental model
+
+> Mappers translate, never mutate or emit.
+
+---
+
+### Question I had
+
+> "When exactly should an event be emitted?"
+
+### Why I was confused
+
+I wasn't sure if timing mattered.
+
+### Explanation that helped
+
+Always **after DB commit**. Never before.
+
+Correct order:
+
+```
+DB commit → create event → emit event
+```
+
+Why this matters:
+
+- Prevents **phantom events** (not persisted)
+- Enables **retries** later
+- Makes **idempotency** possible
+
+### Mental model
+
+> Commit first, emit second.
+
+---
+
+### Question I had
+
+> "Are all events equal?"
+
+### Why I was confused
+
+I thought events were monolithic.
+
+### Explanation that helped
+
+| Event Type               | Visibility | Frozen? |
+| ------------------------ | ---------- | ------- |
+| `IncidentCreatedEvent`   | Public     | ✅      |
+| `LogAttachedEvent`       | Public     | ✅      |
+| `AnalysisRequestedEvent` | Private    | ❓      |
+
+Only freeze events once you are sure:
+
+- Downstream systems will depend on them
+- You won't regret the contract
+
+### Mental model
+
+> Freeze contracts only when stable.
+
+---
+
+## 🔑 Core Insights from Day 10
+
+- Events are immutable facts about the past, not commands
+- Event schemas ≠ API schemas (different stability needs)
+- Services emit events, never routers or repositories
+- Event dispatcher abstracts transport (Kafka becomes plug-in)
+- Emission timing: always after DB commit
+- Freeze events only when downstream systems depend on them

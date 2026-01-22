@@ -2,7 +2,7 @@ from models.incident_logs import IncidentLogDB
 from repositories.incident_log_repo import save_log
 from schemas.incidents import *
 from models.incidents import IncidentDB
-from services.incident_log_service import incident_log_db_to_out
+from services.incident_log_service import incident_log_db_to_attached_event, incident_log_db_to_out
 from sqlalchemy.orm import Session
 from repositories.incident_repo import get_by_id, list_all, save, delete
 from events.incident_events import IncidentCreatedEvent
@@ -117,4 +117,7 @@ def add_incident_log_service(
     if not incident:
         raise ValueError("Incident not found")
     incident_log_db = IncidentLogDB(incident_id=incident_id, message=message)
-    return save_log(db, incident_log_db)
+    incident_log_db = save_log(db, incident_log_db)
+    event = incident_log_db_to_attached_event(incident_log_db)
+    event_dispatcher.emit(event)
+    return incident_log_db
