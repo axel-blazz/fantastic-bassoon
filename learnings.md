@@ -942,3 +942,231 @@ Only freeze events once you are sure:
 - Event dispatcher abstracts transport (Kafka becomes plug-in)
 - Emission timing: always after DB commit
 - Freeze events only when downstream systems depend on them
+
+
+---
+
+## 🟦 Day 11 — Kafka Integration (Producer + Mental Model)
+
+### What I built
+- Integrated Kafka as an event backbone
+- Replaced in-memory event dispatch with Kafka producer
+- Verified events using Kafka CLI consumer
+- Designed consumer behavior before writing worker code
+
+---
+
+### Key concepts I learned
+
+#### 1. Kafka is NOT a queue — it is a log
+- Events are **appended** to a topic
+- Kafka does not “delete” messages after consumption
+- Consumers track their own progress via **offsets**
+
+This clarified why:
+- Multiple consumers can read the same event
+- Replaying events is possible
+- Kafka suits event-driven systems, not task queues
+
+---
+
+#### 2. Broker, Topic, Event (clear separation)
+- **Broker** → Kafka server that stores data
+- **Topic** → named append-only log (e.g. `incident.events`)
+- **Event** → immutable record (JSON payload)
+
+Kafka itself does not understand my schema — it only stores bytes.
+
+---
+
+#### 3. Why producers are simple (and consumers are hard)
+- Producer:
+  - Serialize
+  - Send
+  - Done
+- Consumer:
+  - Poll
+  - Deserialize
+  - Validate
+  - Process
+  - Commit offset
+  - Handle retries and failures
+
+Most complexity lives on the **consumer side**, not producer.
+
+---
+
+#### 4. Why we designed consumers BEFORE writing code
+I learned that jumping straight to writing a consumer leads to:
+- Duplicate processing
+- Lost events
+- Infinite retry loops
+
+Designing first helped clarify:
+- When to commit offsets
+- Which failures are retryable
+- How unknown events should be handled
+
+---
+
+#### 5. Kafka CLI consumer is essential
+Using `kafka-console-consumer` taught me:
+- Kafka really stores events independently of my app
+- Events persist even if the API is stopped
+- Debugging Kafka is much easier via CLI than code
+
+---
+
+### Things I got stuck on (and resolved)
+
+#### ❌ Kafka/Zookeeper docker issues
+- Learned that Docker Desktop engine issues can prevent Kafka startup
+- Understood that Kafka infra must be stable before app debugging
+
+---
+
+### What I now understand clearly
+- Kafka = durable event log
+- Producers don’t guarantee processing — consumers do
+- Offsets are Kafka’s memory, not mine
+
+---
+
+## 🟦 Day 12 — Kafka Consumer & Worker Service
+
+### What I built
+- A **separate worker process**
+- Kafka consumer with manual offset control
+- Event deserialization & validation
+- Event routing by `event_type`
+- Correct offset commit discipline
+
+---
+
+### Key concepts I learned
+
+#### 1. Worker ≠ FastAPI ≠ background task
+The worker is:
+- A long-running process
+- Started independently (`python consumer.py`)
+- Completely decoupled from the API
+
+This clarified real async system architecture.
+
+---
+
+#### 2. Offset = “How far the consumer group has safely progressed”
+Offsets are:
+- Numbers in Kafka partitions
+- Stored in Kafka’s internal `__consumer_offsets` topic
+- Tracked per **consumer group**
+
+Calling `consumer.commit()` tells Kafka:
+> “Everything up to this message is safely processed.”
+
+---
+
+#### 3. Why auto-commit is dangerous
+With auto-commit:
+- Kafka may mark events as processed **before my code runs**
+- Crashes cause silent data loss
+
+Manual commit ensures:
+- At-least-once delivery
+- Crash safety
+- Predictable retries
+
+---
+
+#### 4. Correct offset commit strategy
+I learned the correct pattern:
+
+
+- Commit only after success
+- No commit on handler failure
+- Commit invalid or unknown events to avoid infinite loops
+
+---
+
+#### 5. Deserialization belongs in the consumer
+Kafka delivers **bytes**, not valid objects.
+
+I learned to:
+- Safely decode JSON
+- Reject malformed payloads
+- Validate minimum required fields
+- Prevent worker crashes due to bad data
+
+---
+
+#### 6. Event routing is my responsibility
+Kafka does not route events.
+
+Routing logic:
+- Based on `event_type`
+- Implemented via a handler map
+- Keeps consumer loop clean and readable
+
+This avoids `if/else` chaos and makes the system extensible.
+
+---
+
+#### 7. Retry behavior is controlled by commits
+I finally understood:
+
+- ❌ Crash before commit → Kafka retries
+- ✅ Commit after success → Kafka moves forward
+- ❌ Commit too early → data loss
+
+Retries are a **feature**, not a bug.
+
+---
+
+### Things I got stuck on (and resolved)
+
+#### ❌ “Does committing make sync code async?”
+Learned that:
+- Commit does NOT affect async behavior
+- It only affects Kafka’s replay logic
+- Sync handlers still block, but Kafka safety remains intact
+
+---
+
+#### ❌ “Should everything be async?”
+Learned:
+- Kafka consumer loop can remain sync
+- Async DB/AI decisions are independent
+- Correctness > async hype
+
+---
+
+#### ❌ “Why commit unknown events?”
+Learned:
+- Unknown events are non-retryable
+- Not committing causes infinite reprocessing
+- Logging + commit is the correct behavior
+
+---
+
+### What I now understand clearly
+- Kafka guarantees **delivery**, not processing
+- Offset commits define correctness
+- Worker stability matters more than speed
+- Event-driven systems demand discipline
+
+---
+
+## 🏁 Summary (Day 11–12)
+
+By the end of Day 12, I moved from:
+> “I can send events”
+
+to:
+> “I can safely process events in a distributed system.”
+
+I now understand:
+- Kafka internals at a practical level
+- Consumer groups and offsets
+- Failure handling patterns
+- Why event-driven systems are hard but powerful
+
