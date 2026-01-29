@@ -60,12 +60,11 @@ async def get_incident(
     incident_id: UUID, db: Session = Depends(get_db), _=Depends(get_current_user)
 ):
     try:
-        incident_db = get_incident_service(db, incident_id)
+        return get_incident_service(db, incident_id)
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error")
-    return incident_db_to_incident_out(incident_db)
 
 
 @router.get("/", response_model=list[IncidentOut])

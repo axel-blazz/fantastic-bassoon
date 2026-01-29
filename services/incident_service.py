@@ -1,3 +1,4 @@
+from loguru import logger
 from models.incident_logs import IncidentLogDB
 from repositories.incident_log_repo import save_log
 from schemas.incidents import *
@@ -7,6 +8,11 @@ from sqlalchemy.orm import Session
 from repositories.incident_repo import get_by_id, list_all, save, delete
 from events.incident_events import IncidentCreatedEvent
 from events import event_dispatcher
+from cache.incident_cache import (
+    get_incident_from_cache,
+    set_incident_in_cache,
+    delete_incident_from_cache,
+)
 from uuid import uuid4
 from datetime import datetime, timezone
 
@@ -93,10 +99,16 @@ def update_incident_service(
 
 
 def get_incident_service(db: Session, incident_id: UUID) -> IncidentDB:
+    cached = get_incident_from_cache(incident_id)
+    if cached:
+        logger.info(f"Incident fetched from cache | ID: {incident_id}")
+        return cached
     incident_db = get_by_id(db, incident_id)
     if not incident_db:
         raise ValueError("Incident not found")
-    return incident_db
+    incident_out = incident_db_to_incident_out(incident_db)
+    set_incident_in_cache(incident_out)
+    return incident_out
 
 
 def list_incidents_service(db: Session) -> list[IncidentDB]:
