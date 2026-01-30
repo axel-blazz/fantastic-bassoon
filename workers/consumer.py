@@ -2,6 +2,9 @@ import json
 from confluent_kafka import Consumer, KafkaException
 from loguru import logger
 from router import route_event
+from cache.event_idempotency import EventIdempotencyStore
+
+idempotency_store = EventIdempotencyStore()
 
 REQUIRED_FIELDS = {"event_id", "event_type"}
 
@@ -47,19 +50,45 @@ def run_consumer():
             if event is None:
                 consumer.commit(msg)
                 continue  # Skip invalid messages
+
             
             try:
-            # Handle the event based on its type
+                event_id = event.get("event_id")
+
+                # 🛑 Idempotency guard
+                if idempotency_store.has_processed(event_id):
+                    logger.warning(
+                        f"Duplicate event detected — skipping | "
+                        f"type={event.get('event_type')} id={event_id}"
+                    )
+                    consumer.commit(msg)
+                    continue
+
+                # Handle the event
                 handled = route_event(event)
-                # Commit offset for both handled and non-retryable events
-                consumer.commit(msg)
-                if not handled:
-                    logger.warning(f"Unhandled event type(Skipped and Commited): {event.get('event_type')} | ID: {event.get('event_id')}")
-                # logger.info(f"Received message: {event} | Partition: {msg.partition()} | Offset: {msg.offset()}")
+
+                if handled:
+                    # ✅ Mark FIRST, then commit
+                    idempotency_store.mark_processed(event_id)
+                    consumer.commit(msg)
+                    logger.info(
+                        f"Successfully handled event | "
+                        f"type={event.get('event_type')} id={event_id}"
+                    )
                 else:
-                    logger.info(f"Successfully handled event: {event.get('event_type')} | ID: {event.get('event_id')}")
+                    # Non-retryable, but not processed
+                    consumer.commit(msg)
+                    logger.warning(
+                        f"Unhandled event type — skipped | "
+                        f"type={event.get('event_type')} id={event_id}"
+                    )
+
             except Exception as e:
-                logger.error(f"Error handling event {event.get('event_type')} | ID: {event.get('event_id')} | Error: {e}")
+                # ❌ DO NOT commit here
+                logger.error(
+                    f"Error handling event | "
+                    f"type={event.get('event_type')} id={event_id} | error={e}"
+                )
 
     except KeyboardInterrupt:
         logger.info("Consumer interrupted by user")

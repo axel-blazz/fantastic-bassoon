@@ -15,3 +15,6 @@ class RedisCacheBackend(CacheBackend):
 
     def delete(self, key: str) -> None:
         redis_client.delete(key)
+    
+    def exists(self, key: str) -> bool:
+        return redis_client.get(key) is not None

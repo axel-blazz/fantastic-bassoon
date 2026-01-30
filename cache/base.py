@@ -17,3 +17,8 @@ class CacheBackend(ABC):
     def delete(self, key: str) -> None:
         """Delete a value from the cache by key."""
         pass
+
+    @abstractmethod
+    def exists(self, key: str) -> bool:
+        """Check if a key exists in the cache."""
+        pass

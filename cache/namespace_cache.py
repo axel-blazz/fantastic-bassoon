@@ -20,3 +20,6 @@ class NamespaceCache(CacheBackend):
     def delete(self, key: str) -> None:
         namespaced_key = self._namespaced_key(key)
         self.backend.delete(namespaced_key)
+    
+    def exists(self, key: str) -> bool:
+        return self.get(key) is not None
