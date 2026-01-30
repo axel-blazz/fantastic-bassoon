@@ -1,5 +1,5 @@
 from loguru import logger
-from handlers import (
+from workers.handlers import (
     handle_incident_created,
     handle_log_attached,
     handle_analysis_requested,

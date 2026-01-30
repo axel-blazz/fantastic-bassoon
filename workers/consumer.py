@@ -1,7 +1,7 @@
 import json
 from confluent_kafka import Consumer, KafkaException
 from loguru import logger
-from router import route_event
+from workers.router import route_event
 from cache.event_idempotency import EventIdempotencyStore
 
 idempotency_store = EventIdempotencyStore()
@@ -48,6 +48,7 @@ def run_consumer():
             # Deserialize the event
             event = deserialize_event(msg.value())
             if event is None:
+                # Poison event(will cause issue if not committed, so commit and skip)
                 consumer.commit(msg)
                 continue  # Skip invalid messages
 
